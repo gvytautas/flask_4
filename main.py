@@ -20,6 +20,12 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 migrate = Migrate(app, db)
 
+product_category = db.Table(
+    'product_category', db.metadata,
+    db.Column('product_id', db.Integer, db.ForeignKey('product.id')),
+    db.Column('category_id', db.Integer, db.ForeignKey('category.id'))
+)
+
 
 class Client(db.Model):
     __tablename__ = 'client'
@@ -34,6 +40,14 @@ class Product(db.Model):
     code = db.Column(db.String, unique=True, nullable=False)
     name = db.Column(db.String)
     stock = db.relationship('Stock', back_populates='product')
+    categories = db.relationship('Category', secondary=product_category, back_populates='products')
+
+
+class Category(db.Model):
+    __tablename__ = 'category'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String)
+    products = db.relationship('Product', secondary=product_category, back_populates='categories')
 
 
 class Stock(db.Model):
@@ -79,6 +93,9 @@ def add_product():
     form = forms.CreateProductForm()
     if request.method == 'POST':
         product = Product(name=form.name.data, code=form.code.data)
+        for category in form.categories.data:
+            cat = Category.query.get(category.id)
+            product.categories.append(cat)
         db.session.add(product)
         db.session.commit()
         return redirect(url_for('index'))
@@ -98,10 +115,34 @@ def add_stock():
     return render_template('add_stock.html', form=form)
 
 
+@app.route('/add_category', methods=['GET', 'POST'])
+def add_category():
+    form = forms.CreateCategoryForm()
+    if request.method == 'POST':
+        category = Category(name=form.name.data)
+        db.session.add(category)
+        db.session.commit()
+        return redirect(url_for('index'))
+
+    return render_template('add_category.html', form=form)
+
+
 @app.route('/show_stock')
 def show_stock():
     stock = Stock.query.all()
     return render_template('show_stock.html', data=stock)
+
+
+@app.route('/show_product_item/<product_id>')
+def show_product_item(product_id):
+    product = Product.query.get(product_id)
+    return render_template('show_product_item.html', product=product)
+
+
+@app.route('/show_products')
+def show_products():
+    products = Product.query.all()
+    return render_template('show_products.html', products=products)
 
 
 if __name__ == '__main__':
